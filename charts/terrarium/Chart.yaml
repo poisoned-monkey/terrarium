@@ -2,8 +2,8 @@ apiVersion: v2
 name: terrarium
 description: Kubernetes operator for ephemeral per-branch developer environments
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.1.1
+appVersion: "0.1.1"
 home: https://github.com/poisoned-monkey/terrarium
 sources:
   - https://github.com/poisoned-monkey/terrarium
