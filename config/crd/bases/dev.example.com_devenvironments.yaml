@@ -1,0 +1,328 @@
+# DevEnvironment CRD — declarative description of a dev environment in Kubernetes.
+# The operator based on this CRD:
+# - creates and manages a namespace
+# - deploys the stack (services, databases, queues)
+# - syncs local code and configs with hot-reload
+# - cleans up resources when the CR is deleted
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: devenvironments.dev.example.com
+  annotations:
+    controller-gen.kubebuilder.io/version: (devel)
+spec:
+  group: dev.example.com
+  names:
+    kind: DevEnvironment
+    listKind: DevEnvironmentList
+    plural: devenvironments
+    singular: devenvironment
+  scope: Cluster
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: |
+            DevEnvironment describes a single dev environment (e.g. for a feature branch).
+            The operator creates a namespace, deploys the stack, and optionally
+            syncs code and configs with hot-reload.
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              description: Desired state of the dev environment.
+              required:
+                - stack
+              properties:
+                # Target namespace. If empty, derived from branch (e.g. dev-feature-xyz).
+                namespace:
+                  type: string
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                  maxLength: 63
+                  description: Namespace name in the cluster. Optional; if empty the operator derives it from branch.
+
+                # Git branch and repository for sync and environment identification.
+                branch:
+                  type: string
+                  description: Git branch (e.g. feature/xyz). Used for sync and optionally as the namespace name.
+                repo:
+                  type: string
+                  format: uri
+                  description: Git repository URL (for code sync and GitOps).
+
+                # Declarative stack: services, databases, queues.
+                stack:
+                  type: object
+                  required:
+                    - services
+                  properties:
+                    services:
+                      type: array
+                      description: List of application services in this dev environment.
+                      items:
+                        type: object
+                        required:
+                          - name
+                        properties:
+                          name:
+                            type: string
+                            description: Unique service name within the DevEnvironment.
+                          image:
+                            type: string
+                            description: Container image (used when not building locally).
+                          build:
+                            type: object
+                            description: Local build from a context directory (Dockerfile).
+                            properties:
+                              context:
+                                type: string
+                                description: Path to the build context (e.g. ./services/api).
+                              dockerfile:
+                                type: string
+                                description: Path to the Dockerfile relative to context.
+                          sync:
+                            type: object
+                            description: Live code sync into the container and hot-reload.
+                            properties:
+                              paths:
+                                type: array
+                                items:
+                                  type: string
+                                description: Paths to watch and sync (e.g. ["./src", "./config"]).
+                              exclude:
+                                type: array
+                                items:
+                                  type: string
+                                description: Paths to exclude (e.g. ["node_modules", ".git"]).
+                              hotReload:
+                                type: boolean
+                                default: true
+                                description: Trigger hot-reload on file changes.
+                              command:
+                                type: array
+                                items:
+                                  type: string
+                                description: Reload command to run on hot-reload (optional).
+                          replicas:
+                            type: integer
+                            minimum: 0
+                            default: 1
+                            description: Number of replicas for this service in dev.
+                          env:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                name:
+                                  type: string
+                                value:
+                                  type: string
+                                valueFrom:
+                                  type: object
+                                  description: Reference to a Secret/ConfigMap (same as Pod spec valueFrom).
+                          ports:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                containerPort:
+                                  type: integer
+                                name:
+                                  type: string
+                    databases:
+                      type: array
+                      description: Databases for the dev stack (Postgres, Redis, etc.).
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - type
+                        properties:
+                          name:
+                            type: string
+                          type:
+                            type: string
+                            enum:
+                              - postgres
+                              - mysql
+                              - redis
+                              - mongodb
+                          version:
+                            type: string
+                          storage:
+                            type: object
+                            properties:
+                              size:
+                                type: string
+                                description: PVC size (e.g. 1Gi).
+                    queues:
+                      type: array
+                      description: Message queues for the dev stack (Kafka, RabbitMQ, etc.).
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - type
+                        properties:
+                          name:
+                            type: string
+                          type:
+                            type: string
+                            enum:
+                              - kafka
+                              - rabbitmq
+                              - nats
+
+                # Global config sync (ConfigMaps) into the namespace.
+                configSync:
+                  type: object
+                  description: Synchronizes local config files into the cluster as ConfigMaps.
+                  properties:
+                    paths:
+                      type: array
+                      items:
+                        type: string
+                      description: Local paths to config files (e.g. ["./config", "./k8s/base"]).
+                    hotReload:
+                      type: boolean
+                      default: true
+                      description: Update ConfigMaps on file changes and restart pods if needed.
+
+                # RBAC for the dev namespace.
+                rbac:
+                  type: object
+                  properties:
+                    createDefaultRoleBinding:
+                      type: boolean
+                      default: true
+                      description: Create a RoleBinding granting namespace access (e.g. to the developers group).
+                    subjects:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          kind:
+                            type: string
+                            enum:
+                              - ServiceAccount
+                              - User
+                              - Group
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+
+                # Secrets and ConfigMaps — references or inline data for the namespace.
+                secrets:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      fromSecret:
+                        type: object
+                        description: Reference to an existing Secret in another namespace.
+                        properties:
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                      literal:
+                        type: object
+                        additionalProperties:
+                          type: string
+                        description: Inline key-value data for creating the Secret.
+                configMaps:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      fromConfigMap:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                      literal:
+                        type: object
+                        additionalProperties:
+                          type: string
+
+                # TTL / auto-cleanup for idle dev environments (optional).
+                ttlSecondsAfterIdle:
+                  type: integer
+                  minimum: 0
+                  description: Seconds of inactivity before the CR is marked for deletion (0 = disabled).
+
+            status:
+              type: object
+              description: Current state of the dev environment (populated by the operator).
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Provisioning
+                    - Ready
+                    - Syncing
+                    - Failed
+                    - Terminating
+                  description: Lifecycle phase of the DevEnvironment.
+                namespace:
+                  type: string
+                  description: Name of the provisioned namespace.
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                lastSyncTime:
+                  type: string
+                  format: date-time
+                  description: Time of the last code/config sync.
+                observedGeneration:
+                  type: integer
+                  format: int64
+                  description: The spec generation that this status was computed from.
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Namespace
+          type: string
+          jsonPath: .status.namespace
+        - name: Branch
+          type: string
+          jsonPath: .spec.branch
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

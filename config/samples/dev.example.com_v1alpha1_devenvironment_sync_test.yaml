@@ -1,0 +1,22 @@
+# Sync test sample: a service with sync enabled and a sync-receiver sidecar.
+# Before applying: build the sync-receiver image and load it into the cluster (kind load ...).
+apiVersion: dev.example.com/v1alpha1
+kind: DevEnvironment
+metadata:
+  name: sync-test
+spec:
+  namespace: dev-sync-test
+  stack:
+    services:
+      - name: api
+        image: nginx:alpine
+        sync:
+          paths:
+            - "."
+          exclude:
+            - node_modules
+            - .git
+          hotReload: true
+        ports:
+          - containerPort: 80
+            name: http

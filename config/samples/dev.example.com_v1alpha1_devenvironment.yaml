@@ -1,0 +1,83 @@
+# Sample DevEnvironment: a dev stack for the feature/auth branch.
+# After applying, the operator creates the namespace, deploys services and databases,
+# and — if the sync-receiver image is available — configures local code hot-reload.
+apiVersion: dev.example.com/v1alpha1
+kind: DevEnvironment
+metadata:
+  name: feature-auth
+  # Labels for selection and GitOps (e.g. branch: feature/auth)
+  labels:
+    branch: feature-auth
+spec:
+  namespace: dev-feature-auth   # optional; omit to let the operator derive it from spec.branch
+  branch: feature/auth
+  repo: https://github.com/example/myapp.git
+
+  stack:
+    services:
+      - name: api
+        image: myapp/api:dev
+        build:
+          context: ./services/api
+          dockerfile: Dockerfile.dev
+        sync:
+          paths:
+            - ./services/api/src
+            - ./services/api/config
+          exclude:
+            - node_modules
+            - .git
+          hotReload: true
+        replicas: 1
+        env:
+          - name: NODE_ENV
+            value: development
+          - name: DB_HOST
+            value: postgres
+        ports:
+          - containerPort: 3000
+            name: http
+      - name: worker
+        image: myapp/worker:dev
+        sync:
+          paths:
+            - ./services/worker
+          hotReload: true
+        replicas: 1
+
+    databases:
+      - name: postgres
+        type: postgres
+        version: "15"
+        storage:
+          size: 1Gi
+      - name: redis
+        type: redis
+        version: "7"
+
+    queues:
+      - name: kafka
+        type: kafka
+
+  configSync:
+    paths:
+      - ./config
+      - ./k8s/base
+    hotReload: true
+
+  rbac:
+    createDefaultRoleBinding: true
+    subjects:
+      - kind: Group
+        name: developers
+        namespace: ""
+
+  # Secrets to provision in the namespace (e.g. registry credentials).
+  secrets:
+    - name: registry-creds
+      fromSecret:
+        name: registry-creds
+        namespace: default
+
+  # Optional: auto-delete the environment after idle period (seconds).
+  # ttlSecondsAfterIdle: 86400  # 24 hours

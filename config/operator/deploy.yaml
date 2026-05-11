@@ -1,0 +1,83 @@
+# Installs the DevEnvironment operator into the cluster.
+# Order: apply CRD first (kubectl apply -k config/crd), then this manifest (namespace + RBAC + Deployment).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev-environment-operator
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dev-environment-operator
+  namespace: dev-environment-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dev-environment-operator
+rules:
+  # CRD DevEnvironment
+  - apiGroups: ["dev.example.com"]
+    resources: ["devenvironments", "devenvironments/status"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  # Namespace
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Inside dev namespaces: pods, deployments, services, secrets, configmaps, rbac
+  - apiGroups: [""]
+    resources: ["pods", "services", "secrets", "configmaps", "serviceaccounts"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Read secrets/configmaps from other namespaces for copying
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dev-environment-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dev-environment-operator
+subjects:
+  - kind: ServiceAccount
+    name: dev-environment-operator
+    namespace: dev-environment-operator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dev-environment-operator
+  namespace: dev-environment-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dev-environment-operator
+  template:
+    metadata:
+      labels:
+        app: dev-environment-operator
+    spec:
+      serviceAccountName: dev-environment-operator
+      containers:
+        - name: manager
+          image: dev-environment-operator:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --leader-elect=true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi

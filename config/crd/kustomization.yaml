@@ -1,0 +1,7 @@
+# Kustomization for installing the DevEnvironment CRD into the cluster.
+# Usage: kubectl apply -k config/crd
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - bases/dev.example.com_devenvironments.yaml

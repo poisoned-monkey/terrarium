@@ -1,0 +1,19 @@
+# Minimal DevEnvironment sample with no external secrets.
+# After applying, the operator creates namespace dev-simple and deploys nginx + postgres.
+apiVersion: dev.example.com/v1alpha1
+kind: DevEnvironment
+metadata:
+  name: simple
+spec:
+  namespace: dev-simple
+  stack:
+    services:
+      - name: web
+        image: nginx:alpine
+        ports:
+          - containerPort: 80
+            name: http
+    databases:
+      - name: postgres
+        type: postgres
+        version: "15"
