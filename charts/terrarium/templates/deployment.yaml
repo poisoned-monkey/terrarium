@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "terrarium.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "terrarium.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "terrarium.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "terrarium.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "terrarium.serviceAccountName" . }}
+      containers:
+        - name: manager
+          image: {{ include "terrarium.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --leader-elect={{ .Values.leaderElect }}
+          env:
+            - name: SYNC_RECEIVER_IMAGE
+              value: {{ .Values.syncReceiver.image }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

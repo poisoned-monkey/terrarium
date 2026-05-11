@@ -6,6 +6,10 @@
 
 Kubernetes operator for ephemeral per-branch developer environments. Declare your full stack — services, databases, queues — as a single `DevEnvironment` CRD. The operator provisions a dedicated namespace, wires up RBAC and secrets, syncs local code with hot-reload, and cleans up everything on deletion.
 
+<p align="center">
+  <img src="demo/demo.gif" alt="Terrarium demo" width="720">
+</p>
+
 ## Features
 
 - **Namespace** — auto-created from `spec.namespace` or derived from `spec.branch`
@@ -16,45 +20,31 @@ Kubernetes operator for ephemeral per-branch developer environments. Declare you
 - **Live code sync & hot-reload** — a sync-receiver sidecar in the pod accepts files over HTTP; sync-client watches local paths and uploads changes, optionally triggering a reload command
 - **Image build** — build-client builds an image from `build.context`/`dockerfile`, pushes it to a registry, and patches the Deployment
 
-## Requirements
+## Installation
 
-- Go 1.21+
-- A Kubernetes cluster (or minikube/kind) with a configured `kubeconfig`
-
-## Quick start
-
-### 1. Install CRD and run the operator
+### Helm (recommended)
 
 ```bash
-# Install dependencies
-go mod tidy
-
-# Apply CRD
+# Install CRD
 kubectl apply -k config/crd
 
-# Build and run the operator locally (connects to the cluster via KUBECONFIG)
-make run-local
+# Install the operator
+helm install terrarium charts/terrarium -n terrarium-system --create-namespace
 ```
 
-In a second terminal:
+### Container image
 
-```bash
-# Apply a sample DevEnvironment (create registry-creds in default namespace if needed)
-kubectl apply -f config/samples/dev.example.com_v1alpha1_devenvironment.yaml
+Pre-built images are published to GitHub Container Registry:
 
-# Check status
-kubectl get devenvironments
-kubectl get ns dev-feature-auth
-kubectl get all -n dev-feature-auth
+```
+ghcr.io/poisoned-monkey/terrarium:0.1.0
 ```
 
-### 2. Run the operator inside the cluster
+### From source
 
 ```bash
-# Build the operator image
-make docker-build
-
-# Install CRD and operator manifests
+go mod tidy
+make docker-build IMAGE=your-registry/terrarium:latest
 make deploy
 
 # Verify

@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "terrarium.fullname" . }}
+  labels:
+    {{- include "terrarium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "terrarium.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "terrarium.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}

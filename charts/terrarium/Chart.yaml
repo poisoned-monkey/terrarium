@@ -1,0 +1,17 @@
+apiVersion: v2
+name: terrarium
+description: Kubernetes operator for ephemeral per-branch developer environments
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/poisoned-monkey/terrarium
+sources:
+  - https://github.com/poisoned-monkey/terrarium
+keywords:
+  - kubernetes
+  - operator
+  - developer-tools
+  - ephemeral-environments
+maintainers:
+  - name: poisoned-monkey
+    url: https://github.com/poisoned-monkey
