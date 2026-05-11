@@ -1,5 +1,9 @@
 # Terrarium
 
+[![GitHub Release](https://img.shields.io/github/v/release/poisoned-monkey/terrarium)](https://github.com/poisoned-monkey/terrarium/releases)
+[![Go Report Card](https://goreportcard.com/badge/github.com/poisoned-monkey/terrarium)](https://goreportcard.com/report/github.com/poisoned-monkey/terrarium)
+[![License](https://img.shields.io/github/license/poisoned-monkey/terrarium)](LICENSE)
+
 Kubernetes operator for ephemeral per-branch developer environments. Declare your full stack — services, databases, queues — as a single `DevEnvironment` CRD. The operator provisions a dedicated namespace, wires up RBAC and secrets, syncs local code with hot-reload, and cleans up everything on deletion.
 
 ## Features
