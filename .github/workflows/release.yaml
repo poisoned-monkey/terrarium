@@ -42,16 +42,42 @@ jobs:
 
   helm:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Login to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
-
-      - name: Package and push Helm chart
+      - name: Configure Git
         run: |
-          helm package charts/terrarium
-          helm push terrarium-*.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/helm-charts
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Package Helm chart
+        run: helm package charts/terrarium -d .helm-pkg
+
+      - name: Update GitHub Pages repo
+        run: |
+          # Checkout or create gh-pages branch
+          if git ls-remote --heads origin gh-pages | grep -q gh-pages; then
+            git checkout gh-pages
+          else
+            git checkout --orphan gh-pages
+            git rm -rf .
+          fi
+
+          # Copy packaged chart
+          cp .helm-pkg/*.tgz .
+
+          # Rebuild index
+          helm repo index . --url https://poisoned-monkey.github.io/terrarium
+
+          # Commit and push
+          git add index.yaml *.tgz
+          git commit -m "Update Helm repo for ${{ github.ref_name }}"
+          git push origin gh-pages
 
   release:
     runs-on: ubuntu-latest
