@@ -25,21 +25,57 @@ Kubernetes operator for ephemeral per-branch developer environments. Declare you
 ### Helm (recommended)
 
 ```bash
+# Add the Helm repo
+helm repo add terrarium https://poisoned-monkey.github.io/terrarium
+helm repo update
+
 # Install CRD
 kubectl apply -k config/crd
 
-# Add the repo and install
-helm repo add terrarium https://poisoned-monkey.github.io/terrarium
-helm repo update
-helm install terrarium terrarium/terrarium -n terrarium-system --create-namespace
+# Install the operator
+helm install terrarium terrarium/terrarium \
+  -n terrarium-system --create-namespace
+
+# Verify
+kubectl get pods -n terrarium-system
 ```
 
-### Container image
+To customize the installation, override default values:
 
-Pre-built images are published to GitHub Container Registry:
-
+```bash
+helm install terrarium terrarium/terrarium \
+  -n terrarium-system --create-namespace \
+  --set replicaCount=2 \
+  --set resources.limits.memory=512Mi
 ```
-ghcr.io/poisoned-monkey/terrarium:0.1.1
+
+<details>
+<summary>All configurable values</summary>
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `image.repository` | `ghcr.io/poisoned-monkey/terrarium` | Operator image |
+| `image.tag` | Chart appVersion | Image tag |
+| `image.pullPolicy` | `IfNotPresent` | Pull policy |
+| `replicaCount` | `1` | Number of operator replicas |
+| `leaderElect` | `true` | Enable leader election |
+| `syncReceiver.image` | `ghcr.io/poisoned-monkey/terrarium/sync-receiver:latest` | Sync sidecar image |
+| `resources.requests.cpu` | `10m` | CPU request |
+| `resources.requests.memory` | `64Mi` | Memory request |
+| `resources.limits.memory` | `256Mi` | Memory limit |
+| `serviceAccount.create` | `true` | Create ServiceAccount |
+| `serviceAccount.name` | `""` | ServiceAccount name (generated if empty) |
+| `nodeSelector` | `{}` | Node selector |
+| `tolerations` | `[]` | Tolerations |
+| `affinity` | `{}` | Affinity rules |
+
+</details>
+
+#### Uninstall
+
+```bash
+helm uninstall terrarium -n terrarium-system
+kubectl delete -k config/crd
 ```
 
 ### From source
