@@ -28,7 +28,16 @@ Kubernetes operator for ephemeral per-branch developer environments. Declare you
 # Install CRD
 kubectl apply -k config/crd
 
-# Install the operator
+# Install the operator from OCI registry
+helm install terrarium \
+  oci://ghcr.io/poisoned-monkey/terrarium/helm/terrarium \
+  --version 0.1.1 \
+  -n terrarium-system --create-namespace
+```
+
+Or from a local clone:
+
+```bash
 helm install terrarium charts/terrarium -n terrarium-system --create-namespace
 ```
 
@@ -37,7 +46,7 @@ helm install terrarium charts/terrarium -n terrarium-system --create-namespace
 Pre-built images are published to GitHub Container Registry:
 
 ```
-ghcr.io/poisoned-monkey/terrarium:0.1.0
+ghcr.io/poisoned-monkey/terrarium:0.1.1
 ```
 
 ### From source
