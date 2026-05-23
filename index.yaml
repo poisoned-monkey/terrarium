@@ -1,0 +1,46 @@
+apiVersion: v1
+entries:
+  terrarium:
+  - apiVersion: v2
+    appVersion: 0.1.1
+    created: "2026-05-23T22:23:51.455870379Z"
+    description: Kubernetes operator for ephemeral per-branch developer environments
+    digest: 4c9d768afcdccfe9f707b66f4600c03ac562fa37da77b47f3cabf48755af8e82
+    home: https://github.com/poisoned-monkey/terrarium
+    keywords:
+    - kubernetes
+    - operator
+    - developer-tools
+    - ephemeral-environments
+    maintainers:
+    - name: poisoned-monkey
+      url: https://github.com/poisoned-monkey
+    name: terrarium
+    sources:
+    - https://github.com/poisoned-monkey/terrarium
+    type: application
+    urls:
+    - https://poisoned-monkey.github.io/terrarium/terrarium-0.1.1.tgz
+    version: 0.1.1
+  - apiVersion: v2
+    appVersion: 0.1.1
+    created: "2026-05-23T22:23:51.456332488Z"
+    description: Kubernetes operator for ephemeral per-branch developer environments
+    digest: 4c9d768afcdccfe9f707b66f4600c03ac562fa37da77b47f3cabf48755af8e82
+    home: https://github.com/poisoned-monkey/terrarium
+    keywords:
+    - kubernetes
+    - operator
+    - developer-tools
+    - ephemeral-environments
+    maintainers:
+    - name: poisoned-monkey
+      url: https://github.com/poisoned-monkey
+    name: terrarium
+    sources:
+    - https://github.com/poisoned-monkey/terrarium
+    type: application
+    urls:
+    - https://poisoned-monkey.github.io/terrarium/.helm-pkg/terrarium-0.1.1.tgz
+    version: 0.1.1
+generated: "2026-05-23T22:23:51.454888414Z"
