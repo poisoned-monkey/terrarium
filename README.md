@@ -30,7 +30,7 @@ kubectl apply -k config/crd
 
 # Install the operator from OCI registry
 helm install terrarium \
-  oci://ghcr.io/poisoned-monkey/terrarium/helm/terrarium \
+  oci://ghcr.io/poisoned-monkey/helm-charts/terrarium \
   --version 0.1.1 \
   -n terrarium-system --create-namespace
 ```

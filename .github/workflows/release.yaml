@@ -51,7 +51,7 @@ jobs:
       - name: Package and push Helm chart
         run: |
           helm package charts/terrarium
-          helm push terrarium-*.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/terrarium/helm
+          helm push terrarium-*.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/helm-charts
 
   release:
     runs-on: ubuntu-latest
