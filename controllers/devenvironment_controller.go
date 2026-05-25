@@ -65,24 +65,15 @@ func (r *DevEnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
+	// Skip reconcile if spec hasn't changed (avoid loops from status-only updates).
+	if env.Status.ObservedGeneration == env.Generation && env.Status.Phase == devv1alpha1.DevEnvironmentPhaseReady {
+		return ctrl.Result{}, nil
+	}
+
 	// Determine the target namespace name.
 	nsName := resolveNamespace(&env)
 	if nsName == "" {
 		nsName = "dev-" + sanitizeName(env.Name)
-	}
-
-	// On CR deletion the garbage collector removes the Namespace and all resources with an OwnerReference to this CR.
-
-	// Update status (re-get to avoid resourceVersion conflict).
-	var envFresh devv1alpha1.DevEnvironment
-	if err := r.Get(ctx, req.NamespacedName, &envFresh); err != nil {
-		return ctrl.Result{}, err
-	}
-	envFresh.Status.ObservedGeneration = env.Generation
-	envFresh.Status.Namespace = nsName
-	envFresh.Status.Phase = devv1alpha1.DevEnvironmentPhaseProvisioning
-	if err := r.Status().Update(ctx, &envFresh); err != nil {
-		return ctrl.Result{}, err
 	}
 
 	// 1) Namespace
@@ -133,14 +124,18 @@ func (r *DevEnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
-	// Final status update — re-get for the current resourceVersion.
+	// Single status update at the end — re-get for the latest resourceVersion.
+	var envFresh devv1alpha1.DevEnvironment
 	if err := r.Get(ctx, req.NamespacedName, &envFresh); err != nil {
 		return ctrl.Result{}, err
 	}
 	envFresh.Status.Phase = devv1alpha1.DevEnvironmentPhaseReady
+	envFresh.Status.Namespace = nsName
 	envFresh.Status.ObservedGeneration = env.Generation
 	if err := r.Status().Update(ctx, &envFresh); err != nil {
-		return ctrl.Result{}, err
+		// Conflict is OK — next reconcile will succeed.
+		logger.Info("status update conflict, will retry", "error", err)
+		return ctrl.Result{Requeue: true}, nil
 	}
 	logger.Info("reconcile ok", "namespace", nsName)
 	return ctrl.Result{}, nil
@@ -191,6 +186,18 @@ func (r *DevEnvironmentReconciler) createOrUpdateNamespace(ctx context.Context, 
 			return r.Create(ctx, ns)
 		}
 		return err
+	}
+	// Only update if labels or owner reference actually differ to avoid
+	// triggering Owns() watch and causing reconcile loops.
+	needsUpdate := false
+	for k, v := range ns.Labels {
+		if existing.Labels[k] != v {
+			needsUpdate = true
+			break
+		}
+	}
+	if !needsUpdate {
+		return nil
 	}
 	existing.Labels = ns.Labels
 	if err := controllerutil.SetControllerReference(env, existing, r.Scheme); err != nil {
@@ -448,21 +455,8 @@ func (r *DevEnvironmentReconciler) reconcileService(ctx context.Context, nsName 
 		return err
 	}
 
-	existingDep := &appsv1.Deployment{}
-	err := r.Get(ctx, types.NamespacedName{Name: dep.Name, Namespace: nsName}, existingDep)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			if err := r.Create(ctx, dep); err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	} else {
-		existingDep.Spec = dep.Spec
-		if err := r.Update(ctx, existingDep); err != nil {
-			return err
-		}
+	if err := r.createOrUpdateDeployment(ctx, dep); err != nil {
+		return err
 	}
 
 	// Service for in-cluster DNS access by name.
@@ -503,6 +497,7 @@ func intOrStr(p int32) intstr.IntOrString { return intstr.FromInt32(p) }
 
 func (r *DevEnvironmentReconciler) reconcileDatabase(ctx context.Context, nsName string, db *devv1alpha1.DevDatabase, env *devv1alpha1.DevEnvironment) error {
 	image, port := imageAndPortForDB(db.Type, db.Version)
+	envVars := defaultEnvForDB(db.Type)
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: db.Name, Namespace: nsName},
 		Spec: appsv1.DeploymentSpec{
@@ -515,6 +510,7 @@ func (r *DevEnvironmentReconciler) reconcileDatabase(ctx context.Context, nsName
 						Name:  db.Name,
 						Image: image,
 						Ports: []corev1.ContainerPort{{ContainerPort: port, Name: "client"}},
+						Env:   envVars,
 					}},
 				},
 			},
@@ -563,6 +559,28 @@ func imageAndPortForDB(typ, version string) (image string, port int32) {
 		return "mongo:" + version, 27017
 	default:
 		return "busybox:1.36", 8080
+	}
+}
+
+func defaultEnvForDB(typ string) []corev1.EnvVar {
+	switch typ {
+	case "postgres":
+		return []corev1.EnvVar{
+			{Name: "POSTGRES_PASSWORD", Value: "terrarium"},
+			{Name: "POSTGRES_DB", Value: "app"},
+		}
+	case "mysql":
+		return []corev1.EnvVar{
+			{Name: "MYSQL_ROOT_PASSWORD", Value: "terrarium"},
+			{Name: "MYSQL_DATABASE", Value: "app"},
+		}
+	case "mongodb":
+		return []corev1.EnvVar{
+			{Name: "MONGO_INITDB_ROOT_USERNAME", Value: "root"},
+			{Name: "MONGO_INITDB_ROOT_PASSWORD", Value: "terrarium"},
+		}
+	default:
+		return nil
 	}
 }
 
@@ -626,7 +644,27 @@ func (r *DevEnvironmentReconciler) createOrUpdateDeployment(ctx context.Context,
 		}
 		return err
 	}
-	existing.Spec = dep.Spec
+	// Targeted update: only patch the fields we manage (image, env, ports, volumes,
+	// replicas) to avoid infinite rollout loops caused by Kubernetes-populated defaults
+	// (terminationGracePeriodSeconds, dnsPolicy, imagePullPolicy, etc.).
+	existing.Spec.Replicas = dep.Spec.Replicas
+	existing.Spec.Template.Labels = dep.Spec.Template.Labels
+	desired := dep.Spec.Template.Spec.Containers
+	for i, c := range desired {
+		if i < len(existing.Spec.Template.Spec.Containers) {
+			existing.Spec.Template.Spec.Containers[i].Name = c.Name
+			existing.Spec.Template.Spec.Containers[i].Image = c.Image
+			existing.Spec.Template.Spec.Containers[i].Env = c.Env
+			existing.Spec.Template.Spec.Containers[i].Ports = c.Ports
+			existing.Spec.Template.Spec.Containers[i].VolumeMounts = c.VolumeMounts
+		} else {
+			existing.Spec.Template.Spec.Containers = append(existing.Spec.Template.Spec.Containers, c)
+		}
+	}
+	if len(desired) < len(existing.Spec.Template.Spec.Containers) {
+		existing.Spec.Template.Spec.Containers = existing.Spec.Template.Spec.Containers[:len(desired)]
+	}
+	existing.Spec.Template.Spec.Volumes = dep.Spec.Template.Spec.Volumes
 	return r.Update(ctx, existing)
 }
 
