@@ -1,0 +1,54 @@
+# Full-featured DevEnvironment sample: services + multiple DBs + queue + RBAC + secrets + configmaps.
+apiVersion: dev.example.com/v1alpha1
+kind: DevEnvironment
+metadata:
+  name: full-test
+spec:
+  branch: feature/full-test
+
+  stack:
+    services:
+      - name: api
+        image: nginx:alpine
+        ports:
+          - containerPort: 80
+            name: http
+        env:
+          - name: APP_ENV
+            value: development
+          - name: DB_HOST
+            value: postgres
+
+      - name: worker
+        image: busybox:1.36
+        replicas: 1
+
+    databases:
+      - name: postgres
+        type: postgres
+        version: "15"
+      - name: redis
+        type: redis
+        version: "7"
+
+    queues:
+      - name: rabbitmq
+        type: rabbitmq
+
+  rbac:
+    createDefaultRoleBinding: true
+    subjects:
+      - kind: Group
+        name: developers
+
+  secrets:
+    - name: app-secrets
+      literal:
+        API_KEY: "test-key-12345"
+        DB_PASSWORD: "secret"
+
+  configMaps:
+    - name: app-config
+      literal:
+        APP_NAME: "terrarium-test"
+        LOG_LEVEL: "debug"
